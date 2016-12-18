@@ -14,8 +14,9 @@
 
 -module(docopt).
 
--export([ parse/1
+-export([ parse/2
         , docopt/2
+        , docopt/3
         ]).
 
 -export_type([ doc/0
@@ -26,7 +27,7 @@
 
 -include_lib("eunit/include/eunit.hrl").
 
-%-define(DEBUG, true).
+-define(DEBUG, is_docopt_debug_mode).
 
 %%%_* Records =================================================================
 
@@ -70,15 +71,22 @@
 
 -type parse_mode() :: parse_args | parse_pattern.
 
+-type props() :: [proplists:property()].
+
 -type doc() :: string() | binary().
+
 -opaque parsed_doc() :: {pattern(), options()}.
 
 %%%_* Code ====================================================================
 
 -spec docopt(doc() | parsed_doc(), string()) -> orddict:orddict().
-docopt(Doc, Args) when is_list(Doc) orelse is_binary(Doc) ->
-  docopt(parse(Doc), Args);
-docopt({Pattern, Opts0}, Args) ->
+docopt(MaybeParsedDoc, Args) -> docopt(MaybeParsedDoc, Args, _Props = []).
+
+-spec docopt(doc() | parsed_doc(), string(), props()) -> orddict:orddict().
+docopt(Doc, Args, Props) when is_list(Doc) orelse is_binary(Doc) ->
+  docopt(parse(Doc, Props), Args, Props);
+docopt({Pattern, Opts0}, Args, Props) ->
+  _ = set_debug_flag(Props),
   ParsedArgs = parse_args(Args, Opts0),
   {FixedPattern, Opts} = fix_repeating_arguments(Pattern, Opts0),
   debug("args: ~p\n"
@@ -100,14 +108,22 @@ docopt({Pattern, Opts0}, Args) ->
       throw(parse_failure)
   end.
 
--spec parse(doc()) -> parsed_doc().
-parse(Doc) ->
+-spec parse(doc(), props()) -> parsed_doc().
+parse(Doc, Props) ->
+  _ = set_debug_flag(Props),
   Usage = printable_usage(Doc),
   Opts  = parse_doc_options(Doc),
   debug("usage:   ~p\n"
         "options: ~p",
         [Usage, Opts]),
   parse_pattern(formal_usage(Usage), Opts).
+
+-spec set_debug_flag(props()) -> boolean().
+set_debug_flag(Props) ->
+  erlang:put(?DEBUG, proplists:get_bool(debug, Props)).
+
+-spec is_debug() -> boolean().
+is_debug() -> erlang:get(?DEBUG).
 
 -spec fix_repeating_arguments(pattern(), options()) -> {pattern(), options()}.
 fix_repeating_arguments(Pat, Opts) ->
@@ -598,11 +614,12 @@ partition(Str, Delim) ->
     I -> {string:substr(Str, 1, I - 1), string:substr(Str, I + length(Delim))}
   end.
 
--ifdef(DEBUG).
-debug(Fmt, Args) -> ct:pal(Fmt, Args).
--else.
-debug(_Fmt, _Args) -> ok.
--endif.
+-spec debug(string(), list()) -> ok.
+debug(Fmt, Args) ->
+  case is_debug() of
+    true  -> ct:pal(Fmt, Args);
+    false -> ok
+  end.
 
 %%%_* Tests ===================================================================
 
