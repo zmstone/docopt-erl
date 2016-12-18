@@ -14,7 +14,13 @@
 
 -module(docopt).
 
--compile([export_all]).
+-export([ parse/1
+        , docopt/2
+        ]).
+
+-export_type([ doc/0
+             , parsed_doc/0
+             ]).
 
 %%%_* Includes ================================================================
 
@@ -64,35 +70,44 @@
 
 -type parse_mode() :: parse_args | parse_pattern.
 
+-type doc() :: string() | binary().
+-opaque parsed_doc() :: {pattern(), options()}.
+
 %%%_* Code ====================================================================
 
--spec docopt(string(), string()) -> orddict:orddict().
-docopt(Doc, Args) ->
-  Usage                = printable_usage(Doc),
-  Opts0                = parse_doc_options(Doc),
-  {Pattern, Opts1}     = parse_pattern(formal_usage(Usage), Opts0),
-  ParsedArgs           = parse_args(Args, Opts1),
-  {FixedPattern, Opts} = fix_repeating_arguments(Pattern, Opts1),
+-spec docopt(doc() | parsed_doc(), string()) -> orddict:orddict().
+docopt(Doc, Args) when is_list(Doc) orelse is_binary(Doc) ->
+  docopt(parse(Doc), Args);
+docopt({Pattern, Opts0}, Args) ->
+  ParsedArgs = parse_args(Args, Opts0),
+  {FixedPattern, Opts} = fix_repeating_arguments(Pattern, Opts0),
+  debug("args: ~p\n"
+        "fixd patns: ~p\n"
+        "flat patns: ~p",
+        [ParsedArgs, FixedPattern, flatten(FixedPattern)]),
   case match(FixedPattern, ParsedArgs) of
     {true, [], Collected} ->
-      debug("\n"
-             "args:       ~p\n"
-             "usage:      ~p\n"
-             "options:    ~p\n"
-             "pattern:    ~p\n"
-             "fixd patns: ~p\n"
-             "parsedargs: ~p\n"
-             "collected:  ~p\n"
-             "flat patns: ~p\n",
-         [Args,Usage,Opts,Pattern,FixedPattern,ParsedArgs,Collected,
-          flatten(FixedPattern)]),
+      debug("parsedargs: ~p\n"
+            "collected:  ~p",
+            [ParsedArgs,Collected]),
       lists:foldl(fun (Pat, Acc) ->
                       orddict:store(name(Pat), value(Pat), Acc)
                   end,
                   orddict:new(),
                   flatten(FixedPattern) ++ Opts ++ Collected);
-    _Res -> throw(parse_failure)
+    Res ->
+      debug("~p", [Res]),
+      throw(parse_failure)
   end.
+
+-spec parse(doc()) -> parsed_doc().
+parse(Doc) ->
+  Usage = printable_usage(Doc),
+  Opts  = parse_doc_options(Doc),
+  debug("usage:   ~p\n"
+        "options: ~p",
+        [Usage, Opts]),
+  parse_pattern(formal_usage(Usage), Opts).
 
 -spec fix_repeating_arguments(pattern(), options()) -> {pattern(), options()}.
 fix_repeating_arguments(Pat, Opts) ->
@@ -253,7 +268,6 @@ current(#state{tokens=[Current|_]}) -> Current;
 current(#state{tokens=[]})          -> undefined.
 move(#state{tokens=[_|Rest]}=St)    -> St#state{tokens=Rest}.
 tokens(#state{tokens=Tokens})       -> Tokens.
-rest(#state{tokens=[_|Rest]})       -> Rest.
 options(#state{options=Options})    -> Options.
 mode(#state{mode=Mode})             -> Mode.
 
@@ -363,7 +377,7 @@ parse_pattern(Source0, Options) ->
                  , mode    = parse_pattern
                  },
   {Result, State} = parse_expr(State0),
-  debug("state; ~p", [State]),
+  debug("state: ~p", [State]),
   {#required{children=Result}, options(State)}.
 
 % expr ::= seq ( '|' seq )* ;
@@ -377,9 +391,9 @@ parse_expr(State0) ->
 
 -spec parse_expr(state(), patterns()) -> {patterns(), state()}.
 parse_expr(State0, Acc)                 ->
-  debug("in parse_expr: ~p, ~p", [tokens(State0), Acc]),
+  debug("in parse_expr: ~p\n~p", [tokens(State0), Acc]),
   {Seq, State} = parse_seq(State0),
-  debug("in parse_expr after parse_seq: ~p, ~p", [tokens(State), Seq]),
+  debug("in parse_expr after parse_seq: ~p\n~p", [tokens(State), Seq]),
   case current(State) of
     "|" -> parse_expr(move(State), [maybe_required_seq(Seq)|Acc]);
     _   ->
@@ -403,9 +417,9 @@ parse_seq(#state{tokens=["]"|_]} = State, Acc) -> {lists:reverse(Acc), State};
 parse_seq(#state{tokens=[")"|_]} = State, Acc) -> {lists:reverse(Acc), State};
 parse_seq(#state{tokens=["|"|_]} = State, Acc) -> {lists:reverse(Acc), State};
 parse_seq(State0, Acc) ->
-  debug("in parse seq: ~p, ~p", [tokens(State0), Acc]),
+  debug("in parse seq: ~p\n~p", [tokens(State0), Acc]),
   {Atom, State} = parse_atom(State0),
-  debug("in parse seq after parse_atom: ~p, ~p, ~p", [Atom, tokens(State), Acc]),
+  debug("in parse seq after parse_atom: ~p\n~p\n~p", [Atom, tokens(State), Acc]),
   case current(State) of
     "..." -> parse_seq(move(State), [#one_or_more{children=Atom}|Acc]);
     _     -> parse_seq(State, Atom ++ Acc)
@@ -445,7 +459,7 @@ parse_optional(State0) ->
 parse_required(State0) ->
   debug("parse required ~p", [tokens(State0)]),
   {Expr, State} = parse_expr(State0),
-  debug("parse required after parse_expr ~p, ~p", [tokens(State), Expr]),
+  debug("parse required after parse_expr ~p\n~p", [tokens(State), Expr]),
   case current(State) of
     ")" -> {[#required{children=Expr}], move(State)};
     _   -> throw("Unmatched '('")

@@ -2,3 +2,4 @@
 .eunit
 ebin/*
 test/*.beam
+.rebar
