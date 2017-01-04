@@ -3,3 +3,5 @@
 ebin/*
 test/*.beam
 .rebar
+*.d
+.erlang.mk
