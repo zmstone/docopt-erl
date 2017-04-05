@@ -77,12 +77,14 @@
 
 -opaque parsed_doc() :: {pattern(), options()}.
 
+-type args() :: string() | [string()].
+
 %%%_* Code ====================================================================
 
--spec docopt(doc() | parsed_doc(), string()) -> orddict:orddict().
+-spec docopt(doc() | parsed_doc(), args()) -> orddict:orddict().
 docopt(MaybeParsedDoc, Args) -> docopt(MaybeParsedDoc, Args, _Props = []).
 
--spec docopt(doc() | parsed_doc(), string(), props()) -> orddict:orddict().
+-spec docopt(doc() | parsed_doc(), args(), props()) -> orddict:orddict().
 docopt(Doc, Args, Props) when is_list(Doc) orelse is_binary(Doc) ->
   docopt(parse(Doc, Props), Args, Props);
 docopt({Pattern, Opts0}, Args, Props) ->
@@ -256,13 +258,17 @@ default_value(Desc) ->
     nomatch                 -> undefined
   end.
 
--spec parse_args(string(), options()) -> [child_pattern()].
+-spec parse_args(args(), options()) -> [child_pattern()].
 parse_args(Args, Options) ->
-  State = #state{ tokens  = string:tokens(Args, " ")
+  State = #state{ tokens  = maybe_tokenize(Args)
                 , options = Options
                 , mode    = parse_args
                 },
   parse_args_tokens(State).
+
+-spec maybe_tokenize(args()) -> [string()].
+maybe_tokenize([H | _] = Args) when is_list(H) -> Args;
+maybe_tokenize(Args) -> string:tokens(Args, " ").
 
 -spec parse_args_tokens(state()) -> [child_pattern()].
 parse_args_tokens(#state{tokens=[]}) -> [];
