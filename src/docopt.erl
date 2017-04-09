@@ -623,7 +623,7 @@ partition(Str, Delim) ->
 -spec debug(string(), list()) -> ok.
 debug(Fmt, Args) ->
   case is_debug() of
-    true  -> ct:pal(Fmt, Args);
+    true  -> io:format(Fmt, Args);
     false -> ok
   end.
 
