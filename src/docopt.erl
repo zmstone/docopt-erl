@@ -93,12 +93,12 @@ docopt({Pattern, Opts0}, Args, Props) ->
   {FixedPattern, Opts} = fix_repeating_arguments(Pattern, Opts0),
   debug("args: ~p\n"
         "fixd patns: ~p\n"
-        "flat patns: ~p",
+        "flat patns: ~p\n",
         [ParsedArgs, FixedPattern, flatten(FixedPattern)]),
   case match(FixedPattern, ParsedArgs) of
     {true, [], Collected} ->
       debug("parsedargs: ~p\n"
-            "collected:  ~p",
+            "collected:  ~p\n",
             [ParsedArgs,Collected]),
       lists:foldl(fun (Pat, Acc) ->
                       orddict:store(name(Pat), value(Pat), Acc)
@@ -106,7 +106,7 @@ docopt({Pattern, Opts0}, Args, Props) ->
                   orddict:new(),
                   flatten(FixedPattern) ++ Opts ++ Collected);
     Res ->
-      debug("~p", [Res]),
+      debug("~p\n", [Res]),
       throw(parse_failure)
   end.
 
@@ -116,7 +116,7 @@ parse(Doc, Props) ->
   Usage = printable_usage(Doc),
   Opts  = parse_doc_options(Doc),
   debug("usage:   ~p\n"
-        "options: ~p",
+        "options: ~p\n",
         [Usage, Opts]),
   parse_pattern(formal_usage(Usage), Opts).
 
@@ -399,7 +399,7 @@ parse_pattern(Source0, Options) ->
                  , mode    = parse_pattern
                  },
   {Result, State} = parse_expr(State0),
-  debug("state: ~p", [State]),
+  debug("state: ~p\n", [State]),
   {#required{children=Result}, options(State)}.
 
 % expr ::= seq ( '|' seq )* ;
@@ -413,9 +413,10 @@ parse_expr(State0) ->
 
 -spec parse_expr(state(), patterns()) -> {patterns(), state()}.
 parse_expr(State0, Acc)                 ->
-  debug("in parse_expr: ~p\n~p", [tokens(State0), Acc]),
+  debug("in parse_expr: ~p\n~p\n", [tokens(State0), Acc]),
   {Seq, State} = parse_seq(State0),
-  debug("in parse_expr after parse_seq: ~p\n~p", [tokens(State), Seq]),
+  debug("in parse_expr after parse_seq: ~p\n~p\n",
+        [tokens(State), Seq]),
   case current(State) of
     "|" -> parse_expr(move(State), [maybe_required_seq(Seq)|Acc]);
     _   ->
@@ -439,9 +440,10 @@ parse_seq(#state{tokens=["]"|_]} = State, Acc) -> {lists:reverse(Acc), State};
 parse_seq(#state{tokens=[")"|_]} = State, Acc) -> {lists:reverse(Acc), State};
 parse_seq(#state{tokens=["|"|_]} = State, Acc) -> {lists:reverse(Acc), State};
 parse_seq(State0, Acc) ->
-  debug("in parse seq: ~p\n~p", [tokens(State0), Acc]),
+  debug("in parse seq: ~p\n~p\n", [tokens(State0), Acc]),
   {Atom, State} = parse_atom(State0),
-  debug("in parse seq after parse_atom: ~p\n~p\n~p", [Atom, tokens(State), Acc]),
+  debug("in parse seq after parse_atom: ~p\n~p\n~p\n",
+        [Atom, tokens(State), Acc]),
   case current(State) of
     "..." -> parse_seq(move(State), [#one_or_more{children=Atom}|Acc]);
     _     -> parse_seq(State, Atom ++ Acc)
@@ -451,7 +453,7 @@ parse_seq(State0, Acc) ->
 %%       | long | shorts | argument | command ;
 -spec parse_atom(state()) -> {patterns(), state()}.
 parse_atom(State) ->
-  debug("in parse atom: ~p", [tokens(State)]),
+  debug("in parse atom: ~p\n", [tokens(State)]),
   case current(State) of
     "["       -> parse_optional(move(State));
     "("       -> parse_required(move(State));
@@ -469,9 +471,9 @@ parse_atom(State) ->
 
 -spec parse_optional(state()) -> {[#optional{}], state()}.
 parse_optional(State0) ->
-  debug("parse optional ~p", [State0]),
+  debug("parse optional ~p\n", [State0]),
   {Expr, State} = parse_expr(State0),
-  debug("parse optional after parse_expr ~p\n~p", [Expr, State]),
+  debug("parse optional after parse_expr ~p\n~p\n", [Expr, State]),
   case current(State) of
     "]" -> {[#optional{children=Expr}], move(State)};
     _   -> throw("Unmatched '['")
@@ -479,9 +481,9 @@ parse_optional(State0) ->
 
 -spec parse_required(state()) -> {[#required{}], state()}.
 parse_required(State0) ->
-  debug("parse required ~p", [tokens(State0)]),
+  debug("parse required ~p\n", [tokens(State0)]),
   {Expr, State} = parse_expr(State0),
-  debug("parse required after parse_expr ~p\n~p", [tokens(State), Expr]),
+  debug("parse required after parse_expr ~p\n~p\n", [tokens(State), Expr]),
   case current(State) of
     ")" -> {[#required{children=Expr}], move(State)};
     _   -> throw("Unmatched '('")
