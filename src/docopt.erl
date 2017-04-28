@@ -625,7 +625,7 @@ partition(Str, Delim) ->
 -spec debug(string(), list()) -> ok.
 debug(Fmt, Args) ->
   case is_debug() of
-    true  -> io:format(Fmt, Args);
+    true  -> io:format(standard_error, Fmt, Args);
     false -> ok
   end.
 
